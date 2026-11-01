@@ -4,7 +4,7 @@
 
 **在线体验** → https://YOUR_NAME.github.io/code-cosmos/
 
-![预览](docs/preview.png)
+![预览](docs/preview.jpg)
 
 ---
 
