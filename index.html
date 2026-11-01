@@ -27,7 +27,9 @@
   .brand{font-size:11px;letter-spacing:.34em;color:#7ea6d9;text-transform:uppercase}
   .who{margin:10px 0 0;font-size:20px;font-weight:500;letter-spacing:-.01em;color:#eaf4ff}
   .who em{font-style:normal;color:#8fb6e8}
-  .stats{display:flex;gap:34px;margin-top:22px}
+  .range{margin-top:8px;font-size:10.5px;letter-spacing:.16em;color:#4e6a8c;
+    font-variant-numeric:tabular-nums}
+  .stats{display:flex;gap:34px;margin-top:18px}
   .stat b{display:block;font-size:23px;font-weight:500;letter-spacing:-.02em;
     font-variant-numeric:tabular-nums;color:#f2f8ff;line-height:1.1}
   .stat span{display:block;font-size:11px;color:var(--muted);margin-top:5px;letter-spacing:.1em}
@@ -54,6 +56,18 @@
   .sound.on .w2{opacity:.55}
   .sound:not(.on){animation:breathe 4s ease-in-out infinite}
   @keyframes breathe{0%,100%{box-shadow:0 0 0 rgba(80,170,255,0)}50%{box-shadow:0 0 18px rgba(80,170,255,.18)}}
+
+  .reset{position:fixed;right:38px;bottom:90px;z-index:3;height:32px;padding:0 14px 0 11px;
+    border-radius:999px;display:flex;align-items:center;gap:6px;cursor:pointer;
+    background:rgba(14,22,36,.80);border:1px solid rgba(120,170,230,.30);color:#a8c6e6;
+    font-size:11px;letter-spacing:.08em;font-family:inherit;
+    backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+    box-shadow:0 12px 30px rgba(0,0,0,.45);
+    opacity:0;transform:translateY(6px);pointer-events:none;
+    transition:opacity .35s, transform .35s, color .2s, border-color .2s}
+  .reset.on{opacity:1;transform:none;pointer-events:auto}
+  .reset:hover{color:#dcecff;border-color:rgba(120,170,230,.5)}
+  .reset svg{display:block;opacity:.9}
 
   .dock{position:fixed;left:50%;bottom:32px;transform:translateX(-50%);z-index:3;
     display:flex;align-items:center;gap:6px;padding:7px 7px 7px 18px;border-radius:999px;
@@ -93,6 +107,8 @@
     .stat span{font-size:10px}
     .hint,.legend{display:none}
     .sound{top:20px;right:20px;bottom:auto;width:36px;height:36px}
+    .reset{top:66px;right:20px;bottom:auto;height:30px;font-size:10.5px}
+    .range{font-size:9.5px;letter-spacing:.12em}
     .dock{width:calc(100% - 28px);bottom:20px}
     .dock input{width:auto;flex:1;min-width:0}
     .status{bottom:76px}
@@ -105,6 +121,7 @@
 <header class="hud">
   <div class="brand">Code Cosmos</div>
   <h1 class="who" id="who">@<em>demo</em> · 过去 365 天</h1>
+  <div class="range" id="range"></div>
   <div class="stats">
     <div class="stat"><b id="s-total">0</b><span>总提交</span></div>
     <div class="stat"><b id="s-active">0</b><span>活跃天数</span></div>
@@ -128,6 +145,14 @@
 
 <div class="status" id="status"></div>
 <div class="card" id="card"></div>
+
+<button class="reset" id="reset" type="button" aria-label="回正视角">
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M3.2 12a8.8 8.8 0 1 0 2.9-6.5"/>
+    <path d="M3 4.2v4.6h4.6"/>
+  </svg>
+  <span>回正视角</span>
+</button>
 
 <button class="sound" id="sound" type="button" title="宇宙背景音" aria-label="切换背景音乐">
   <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
@@ -189,7 +214,10 @@
   var fx = null, fxc = null;
   var SPR = [];
 
-  var cam = { yaw: 0.95, pitch: 0.60, dist: 1230, tyaw: 0.95, tpitch: 0.60, tdist: 1230 };
+  var DEF = { yaw: 0.95, pitch: 0.60, dist: 1230 };   /* 默认视角，供“回正”使用 */
+  var cam = { yaw: DEF.yaw, pitch: DEF.pitch, dist: DEF.dist,
+              tyaw: DEF.yaw, tpitch: DEF.pitch, tdist: DEF.dist };
+  var manual = false, resetShown = false;
   var ptrX = 0, ptrY = 0, parX = 0, parY = 0;   /* 鼠标视差：目标值 / 平滑值 */
 
   function resize() {
@@ -742,11 +770,19 @@
     }
 
     ctx.globalCompositeOperation = 'source-over';
+
+    /* 视角被转偏之后，浮出“回正”按钮 */
+    var off = manual && (Math.abs(cam.tyaw - DEF.yaw) > 0.22 ||
+              Math.abs(cam.tpitch - DEF.pitch) > 0.10 ||
+              Math.abs(cam.tdist - DEF.dist) > 170);
+    if (off !== resetShown) { resetShown = off; resetBtn.classList.toggle('on', off); }
+
     requestAnimationFrame(frame);
   }
 
   /* ---------- 交互 ---------- */
   var lastX = 0, lastY = 0, moved = 0;
+  var resetBtn = document.getElementById('reset');
 
   function pick(mx, my) {
     var best = null, bestD = 16 * 16;
@@ -788,8 +824,9 @@
     if (dragging) {
       var dx = e.clientX - lastX, dy = e.clientY - lastY;
       moved += Math.abs(dx) + Math.abs(dy);
-      cam.tyaw += dx * 0.0055;
-      cam.tpitch = clamp(cam.tpitch + dy * 0.0042, 0.06, 1.32);
+      cam.tyaw += dx * 0.0044;                                  /* 灵敏度 = 原值的八成 */
+      cam.tpitch = clamp(cam.tpitch + dy * 0.00336, 0.06, 1.32);
+      manual = true;
       lastX = e.clientX; lastY = e.clientY;
       lastInteract = performance.now();
     } else {
@@ -822,8 +859,20 @@
   cvs.addEventListener('wheel', function (e) {
     e.preventDefault();
     cam.tdist = clamp(cam.tdist * (1 + e.deltaY * 0.0011), 700, 3000);
+    manual = true;
     lastInteract = performance.now();
   }, { passive: false });
+
+  /* 回正：平滑回到默认视角 */
+  resetBtn.addEventListener('click', function () {
+    var TWO = Math.PI * 2;
+    cam.yaw = cam.yaw - Math.round((cam.yaw - DEF.yaw) / TWO) * TWO;  /* 走近路，不绕圈 */
+    cam.tyaw = DEF.yaw;
+    cam.tpitch = DEF.pitch;
+    cam.tdist = DEF.dist;
+    manual = false;
+    lastInteract = performance.now();
+  });
 
   /* 指针位置 → 微视差（全局监听，鼠标划过面板也有效） */
   window.addEventListener('pointermove', function (e) {
@@ -848,6 +897,8 @@
     layout(days);
     updateStats(days);
     document.getElementById('who').innerHTML = '@<em>' + name + '</em> · 过去 365 天';
+    document.getElementById('range').textContent =
+      days[0].date.replace(/-/g, '.') + '  —  ' + days[days.length - 1].date.replace(/-/g, '.');
     t0 = performance.now() - (INSTANT ? 6000 : 0);
     activeStar = null;
     hoverStar = null;
