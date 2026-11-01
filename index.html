@@ -20,6 +20,8 @@
   }
   #stage{position:fixed;inset:0;display:block;touch-action:none;cursor:grab}
   #stage.dragging{cursor:grabbing}
+  body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:1;
+    background:radial-gradient(ellipse 78% 68% at 50% 46%, rgba(0,0,0,0) 42%, rgba(2,4,9,.66) 100%)}
 
   .hud{position:fixed;left:0;top:0;padding:34px 38px;pointer-events:none;z-index:2}
   .brand{font-size:11px;letter-spacing:.34em;color:#7ea6d9;text-transform:uppercase}
@@ -32,10 +34,26 @@
 
   .hint{position:fixed;right:38px;top:38px;font-size:11px;color:#5b718c;letter-spacing:.06em;z-index:2;pointer-events:none}
 
-  .legend{position:fixed;left:38px;bottom:36px;display:flex;align-items:center;gap:9px;
-    font-size:11px;color:var(--muted);z-index:2;pointer-events:none}
+  .legend{position:fixed;left:38px;bottom:36px;display:flex;flex-direction:column;
+    align-items:flex-start;gap:7px;z-index:2;pointer-events:none}
+  .legend .row{display:flex;align-items:center;gap:9px;font-size:11px;color:var(--muted)}
+  .legend .cap{font-size:10.5px;color:#54708f;letter-spacing:.08em}
   .legend i{display:block;width:104px;height:3px;border-radius:2px;
-    background:linear-gradient(90deg,#24425f,#2f81f7,#6ed6ff,#ffe296)}
+    background:linear-gradient(90deg,#16284a,#1e4e96,#2e80e0,#60c4fa,#baf0ff,#ffde94)}
+
+  .sound{position:fixed;right:38px;bottom:36px;z-index:3;width:42px;height:42px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;
+    background:rgba(12,19,31,.66);border:1px solid var(--line);color:#7fa3c8;
+    backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+    transition:color .2s, border-color .2s, box-shadow .3s}
+  .sound:hover{color:#cfe4ff;border-color:rgba(120,170,230,.4)}
+  .sound svg{display:block}
+  .sound .w1,.sound .w2{opacity:0;transition:opacity .25s}
+  .sound.on{color:#9fe1ff;border-color:rgba(120,200,255,.45);box-shadow:0 0 26px rgba(80,170,255,.28)}
+  .sound.on .w1{opacity:1}
+  .sound.on .w2{opacity:.55}
+  .sound:not(.on){animation:breathe 4s ease-in-out infinite}
+  @keyframes breathe{0%,100%{box-shadow:0 0 0 rgba(80,170,255,0)}50%{box-shadow:0 0 18px rgba(80,170,255,.18)}}
 
   .dock{position:fixed;left:50%;bottom:32px;transform:translateX(-50%);z-index:3;
     display:flex;align-items:center;gap:6px;padding:7px 7px 7px 18px;border-radius:999px;
@@ -52,7 +70,7 @@
   .dock button:hover{background:#4a94ff}
   .dock button:active{transform:scale(.97)}
 
-  .status{position:fixed;left:50%;bottom:86px;transform:translateX(-50%);z-index:3;
+  .status{position:fixed;left:50%;bottom:104px;transform:translateX(-50%);z-index:3;
     font-size:11.5px;color:#7e93ad;letter-spacing:.02em;pointer-events:none;
     opacity:0;transition:opacity .3s;max-width:80vw;text-align:center}
   .status.on{opacity:1}
@@ -74,6 +92,7 @@
     .stat b{font-size:17px}
     .stat span{font-size:10px}
     .hint,.legend{display:none}
+    .sound{top:20px;right:20px;bottom:auto;width:36px;height:36px}
     .dock{width:calc(100% - 28px);bottom:20px}
     .dock input{width:auto;flex:1;min-width:0}
     .status{bottom:76px}
@@ -96,7 +115,10 @@
 
 <div class="hint">拖动旋转 · 滚轮缩放 · 点击星点查看</div>
 
-<div class="legend"><span>少</span><i></i><span>多</span></div>
+<div class="legend">
+  <div class="row"><span>少</span><i></i><span>多</span></div>
+  <div class="cap">内圈 = 一年前 · 外圈 = 今天</div>
+</div>
 
 <form class="dock" id="form">
   <span class="at">@</span>
@@ -106,6 +128,14 @@
 
 <div class="status" id="status"></div>
 <div class="card" id="card"></div>
+
+<button class="sound" id="sound" type="button" title="宇宙背景音" aria-label="切换背景音乐">
+  <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M4 9.2v5.6h3.4L13 19.4V4.6L7.4 9.2H4z"/>
+    <path class="w1" d="M16.2 8.8a4.6 4.6 0 0 1 0 6.4"/>
+    <path class="w2" d="M18.8 6.2a8.2 8.2 0 0 1 0 11.6"/>
+  </svg>
+</button>
 
 <script>
 (function () {
@@ -128,11 +158,12 @@
 
   /* 颜色阶梯：深蓝 → 亮蓝 → 青 → 暖白 */
   var RAMP = [
-    [0.00, [36, 66, 104]],
-    [0.30, [47, 129, 247]],
-    [0.62, [110, 214, 255]],
-    [0.85, [168, 240, 255]],
-    [1.00, [255, 226, 150]]
+    [0.00, [22, 40, 74]],
+    [0.18, [30, 78, 150]],
+    [0.40, [46, 128, 224]],
+    [0.62, [96, 196, 250]],
+    [0.82, [186, 240, 255]],
+    [1.00, [255, 222, 148]]
   ];
   function rampColor(t) {
     t = clamp(t, 0, 1);
@@ -155,6 +186,7 @@
   var ctx = cvs.getContext('2d');
   var W = 0, H = 0, DPR = 1, focal = 900;
   var bgCanvas = null;
+  var fx = null, fxc = null;
   var SPR = [];
 
   var cam = { yaw: 0.95, pitch: 0.62, dist: 1180, tyaw: 0.95, tpitch: 0.62, tdist: 1180 };
@@ -170,6 +202,11 @@
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     focal = Math.min(W, H) * 1.05;
     buildBackground();
+
+    /* 低分辨率缓冲，用于做辉光 */
+    if (!fx) { fx = document.createElement('canvas'); fxc = fx.getContext('2d'); }
+    fx.width = Math.max(1, Math.round(W / 6));
+    fx.height = Math.max(1, Math.round(H / 6));
   }
 
   /* 背景：星云 + 远景星点，只在尺寸变化时重绘一次 */
@@ -305,6 +342,7 @@
 
   /* ---------- 星系布局：一天一颗星，绕四圈就是一年 ---------- */
   var stars = [];
+  var dust = [];
   var TURNS = 4;
   var R0 = 74, RMAX = 522;
 
@@ -318,7 +356,7 @@
     stars = days.map(function (d, i) {
       var th = i * dTheta;
       var r = R0 + i * dR;
-      var t = d.count === 0 ? 0 : Math.pow(d.count / max, 0.55);
+      var t = d.count === 0 ? 0 : Math.pow(d.count / max, 0.62);
       return {
         date: d.date, count: d.count, dow: d.dow,
         x: Math.cos(th) * r,
@@ -326,10 +364,26 @@
         h: d.count === 0 ? 0 : 6 + 20 * Math.sqrt(d.count),
         t: t,
         bucket: Math.round(t * 9),
+        ph: Math.random() * 6.2832,
         delay: i * 2.0,
         px: 0, py: 0, pz: 0, vis: false
       };
     });
+
+    /* 悬浮尘埃：让画面有“空气感”，也提供近景视差 */
+    dust = [];
+    for (var k = 0; k < 190; k++) {
+      var ang = Math.random() * Math.PI * 2;
+      var rad = 50 + Math.pow(Math.random(), 0.65) * 720;
+      dust.push({
+        x: Math.cos(ang) * rad,
+        z: Math.sin(ang) * rad,
+        y: Math.random() * 140,
+        s: 0.6 + Math.random() * 1.5,
+        ph: Math.random() * 6.2832,
+        sp: 0.4 + Math.random() * 0.9
+      });
+    }
   }
 
   /* ---------- 统计 ---------- */
@@ -354,6 +408,111 @@
     document.getElementById('s-best').title = s.bestDate;
   }
 
+  /* ---------- 宇宙背景音：全部由振荡器实时合成，不加载任何音频文件 ---------- */
+  var Sound = (function () {
+    var ac = null, master = null, bus = null, on = false, bellTimer = 0, pulseAt = -9999;
+    var SCALE = [0, 3, 5, 7, 10];   /* 小调五声音阶，怎么弹都不刺耳 */
+
+    function build() {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return false;
+      ac = new AC();
+
+      master = ac.createGain();
+      master.gain.value = 0;
+      master.connect(ac.destination);
+
+      /* 反馈延迟，制造“空旷”的空间感 */
+      var delay = ac.createDelay(2.5);
+      delay.delayTime.value = 0.58;
+      var fb = ac.createGain(); fb.gain.value = 0.52;
+      var damp = ac.createBiquadFilter();
+      damp.type = 'lowpass'; damp.frequency.value = 1500;
+      delay.connect(damp); damp.connect(fb); fb.connect(delay);
+      var wet = ac.createGain(); wet.gain.value = 0.45;
+      damp.connect(wet); wet.connect(master);
+
+      bus = ac.createGain(); bus.gain.value = 1;
+      bus.connect(master);
+      bus.connect(delay);
+
+      /* 55Hz 低频铺底 */
+      var drone = ac.createOscillator();
+      drone.type = 'sine'; drone.frequency.value = 55;
+      var dg = ac.createGain(); dg.gain.value = 0.15;
+      drone.connect(dg); dg.connect(bus);
+      drone.start();
+
+      /* 和弦垫：Am7 的五个音，各自轻微失谐 */
+      var filt = ac.createBiquadFilter();
+      filt.type = 'lowpass'; filt.frequency.value = 880; filt.Q.value = 0.7;
+      filt.connect(bus);
+
+      var lfo = ac.createOscillator();
+      lfo.frequency.value = 0.045;
+      var lfoGain = ac.createGain(); lfoGain.gain.value = 420;
+      lfo.connect(lfoGain); lfoGain.connect(filt.frequency);
+      lfo.start();
+
+      var chord = [110, 164.81, 220, 261.63, 329.63];
+      for (var i = 0; i < chord.length; i++) {
+        var o = ac.createOscillator();
+        o.type = i % 2 ? 'sine' : 'triangle';
+        o.frequency.value = chord[i];
+        o.detune.value = (i - 2) * 4;
+        var g = ac.createGain();
+        g.gain.value = 0.055 / (1 + i * 0.35);
+        o.connect(g); g.connect(filt);
+        o.start();
+      }
+      return true;
+    }
+
+    function bell() {
+      if (!on) return;
+      var now = ac.currentTime;
+      var semi = SCALE[(Math.random() * SCALE.length) | 0] + 12 * (1 + ((Math.random() * 2) | 0));
+      var o = ac.createOscillator();
+      o.type = 'sine';
+      o.frequency.value = 220 * Math.pow(2, semi / 12);
+      var g = ac.createGain();
+      g.gain.setValueAtTime(0.0001, now);
+      g.gain.linearRampToValueAtTime(0.085, now + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0006, now + 4.2);
+      o.connect(g); g.connect(bus);
+      o.start(now); o.stop(now + 4.4);
+      pulseAt = performance.now();
+      scheduleBell();
+    }
+
+    function scheduleBell() {
+      clearTimeout(bellTimer);
+      bellTimer = setTimeout(bell, 2600 + Math.random() * 5200);
+    }
+
+    return {
+      toggle: function () {
+        if (!ac && !build()) return false;
+        on = !on;
+        if (on) {
+          if (ac.state === 'suspended' && ac.resume) ac.resume();
+          master.gain.cancelScheduledValues(ac.currentTime);
+          master.gain.setTargetAtTime(0.2, ac.currentTime, 0.9);
+          scheduleBell();
+        } else {
+          master.gain.cancelScheduledValues(ac.currentTime);
+          master.gain.setTargetAtTime(0, ac.currentTime, 0.25);
+          clearTimeout(bellTimer);
+        }
+        return on;
+      },
+      pulse: function () {
+        if (!on) return 0;
+        return Math.exp(-((performance.now() - pulseAt) / 1000) * 1.6);
+      }
+    };
+  })();
+
   /* ---------- 主循环 ---------- */
   var t0 = performance.now();
   var activeStar = null;
@@ -373,12 +532,15 @@
 
   function frame(now) {
     var el = now - t0;
+    var dt = Math.min(0.05, (now - (frame.last || now)) / 1000);
+    frame.last = now;
 
-    cam.yaw += (cam.tyaw - cam.yaw) * 0.11;
-    cam.pitch += (cam.tpitch - cam.pitch) * 0.11;
-    cam.dist += (cam.tdist - cam.dist) * 0.10;
+    cam.yaw += (cam.tyaw - cam.yaw) * 0.09;
+    cam.pitch += (cam.tpitch - cam.pitch) * 0.09;
+    cam.dist += (cam.tdist - cam.dist) * 0.09;
 
-    if (!dragging && now - lastInteract > 2400) cam.tyaw += 0.0016;
+    /* 空闲时极慢自转：约 4 分钟一圈 */
+    if (!dragging && now - lastInteract > 3200) cam.tyaw += 0.026 * dt;
 
     ctx.globalCompositeOperation = 'source-over';
     ctx.globalAlpha = 1;
@@ -405,6 +567,41 @@
       ctx.stroke();
     }
 
+    /* 悬浮尘埃 */
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.fillStyle = '#bcd9ff';
+    for (var di = 0; di < dust.length; di++) {
+      var du = dust[di];
+      var dy = du.y + Math.sin(el * 0.00034 * du.sp + du.ph) * 15;
+      var dp = proj(du.x, dy, du.z, cy, sy, cp, sp, ox, oy, dist);
+      if (!dp) continue;
+      var dfog = clamp((dist + 620 - dp.z) / 980, 0.06, 1);
+      ctx.globalAlpha = 0.10 * dfog;
+      ctx.beginPath();
+      ctx.arc(dp.x, dp.y, Math.max(0.6, du.s * dp.s * 1.4), 0, 6.2832);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    /* 先算出所有柱体基点的投影，供螺旋路径复用 */
+    var basePts = new Array(stars.length);
+    for (var bi = 0; bi < stars.length; bi++) {
+      basePts[bi] = proj(stars[bi].x, 0, stars[bi].z, cy, sy, cp, sp, ox, oy, dist);
+    }
+
+    /* 螺旋路径：把 365 根柱子串成一条连续的路 */
+    ctx.beginPath();
+    var pStart = false;
+    for (var pi = 0; pi < basePts.length; pi++) {
+      var bp0 = basePts[pi];
+      if (!bp0) { pStart = false; continue; }
+      if (!pStart) { ctx.moveTo(bp0.x, bp0.y); pStart = true; }
+      else { ctx.lineTo(bp0.x, bp0.y); }
+    }
+    ctx.strokeStyle = 'rgba(70,120,186,0.20)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
     /* 投影 + 按深度排序 */
     var list = [];
     for (var i = 0; i < stars.length; i++) {
@@ -413,7 +610,7 @@
       st.vis = false;
       if (g <= 0) continue;
       var grow = 1 - Math.pow(1 - g, 3);
-      var pb = proj(st.x, 0, st.z, cy, sy, cp, sp, ox, oy, dist);
+      var pb = basePts[i];
       if (!pb) continue;
       var pt = proj(st.x, st.h * grow, st.z, cy, sy, cp, sp, ox, oy, dist);
       if (!pt) continue;
@@ -425,41 +622,65 @@
     ctx.globalCompositeOperation = 'lighter';
     ctx.lineCap = 'round';
 
-    /* 星系核心的柔光 */
+    /* 星系核心的柔光，随音乐脉冲微微呼吸 */
     var core = proj(0, 0, 0, cy, sy, cp, sp, ox, oy, dist);
+    var pl = Sound.pulse();
     if (core) {
-      var cs = 150 * core.s;
-      ctx.globalAlpha = 0.5;
+      var cs = 200 * core.s * (1 + pl * 0.45);
+      ctx.globalAlpha = 0.5 + pl * 0.28;
       ctx.drawImage(SPR[4], core.x - cs / 2, core.y - cs / 2, cs, cs);
+      var cs2 = 74 * core.s * (1 + pl * 0.5);
+      ctx.globalAlpha = 0.62 + pl * 0.3;
+      ctx.drawImage(SPR[6], core.x - cs2 / 2, core.y - cs2 / 2, cs2, cs2);
       ctx.globalAlpha = 1;
     }
 
     for (var j = 0; j < list.length; j++) {
       var it = list[j], s2 = it.st, pb2 = it.pb, pt2 = it.pt, gr = s2.grow;
       var col = rampColor(s2.t);
-      var rgb = col[0] + ',' + col[1] + ',' + col[2];
+
+      /* 景深：越远越暗、越冷 */
+      var fog = clamp((dist + 620 - pb2.z) / 980, 0.12, 1);
+      var dk = 0.40 + 0.60 * fog;
+      var rgb = Math.round(col[0] * dk) + ',' + Math.round(col[1] * dk) + ',' + Math.round(col[2] * dk);
       var lw = Math.max(1.0, 3.2 * pb2.s);
 
       if (s2.h > 0.5) {
+        var mX = (pb2.x + pt2.x) * 0.5, mY = (pb2.y + pt2.y) * 0.5;
+        var a0 = 0.10 * gr * fog, a1 = 0.55 * gr * fog;
+
+        /* 外层柔光：整根 */
         ctx.beginPath();
         ctx.moveTo(pb2.x, pb2.y);
         ctx.lineTo(pt2.x, pt2.y);
-        ctx.strokeStyle = 'rgba(' + rgb + ',' + (0.085 * gr).toFixed(3) + ')';
-        ctx.lineWidth = lw * 3.4;
+        ctx.strokeStyle = 'rgba(' + rgb + ',' + a0.toFixed(3) + ')';
+        ctx.lineWidth = lw * 3.6;
         ctx.stroke();
-        ctx.strokeStyle = 'rgba(' + rgb + ',' + (0.5 * gr).toFixed(3) + ')';
-        ctx.lineWidth = lw * 0.85;
+
+        /* 芯部：下暗上亮，光像是从平面里升起来的 */
+        ctx.beginPath();
+        ctx.moveTo(pb2.x, pb2.y);
+        ctx.lineTo(mX, mY);
+        ctx.strokeStyle = 'rgba(' + rgb + ',' + (a1 * 0.32).toFixed(3) + ')';
+        ctx.lineWidth = lw * 0.8;
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(mX, mY);
+        ctx.lineTo(pt2.x, pt2.y);
+        ctx.strokeStyle = 'rgba(' + rgb + ',' + a1.toFixed(3) + ')';
         ctx.stroke();
       }
 
       var size = Math.max(8, 38 * pt2.s) * (0.68 + 0.62 * s2.t) * (0.4 + 0.6 * gr);
-      ctx.globalAlpha = (0.32 + 0.68 * s2.t) * gr;
+      var tw = 0.80 + 0.20 * Math.sin(el * 0.0016 + s2.ph);   /* 各自的呼吸相位 */
+      ctx.globalAlpha = (0.32 + 0.68 * s2.t) * gr * (0.35 + 0.65 * fog) * tw;
       ctx.drawImage(SPR[s2.bucket], pt2.x - size / 2, pt2.y - size / 2, size, size);
 
       /* 柱体落点的微光，让整片星系有“地面” */
       if (s2.h > 0.5) {
         var bs = size * 0.55;
-        ctx.globalAlpha = 0.16 * gr;
+        ctx.globalAlpha = 0.15 * gr * fog;
         ctx.drawImage(SPR[s2.bucket], pb2.x - bs / 2, pb2.y - bs / 2, bs, bs);
       }
       ctx.globalAlpha = 1;
@@ -478,6 +699,17 @@
       ctx.arc(hi.px, hi.py, 22, 0, 6.2832);
       ctx.strokeStyle = 'rgba(150,210,255,0.18)';
       ctx.stroke();
+    }
+
+    /* 辉光：先降采样再放大叠加，光点才会真正“发光”而不是贴了个圆点 */
+    if (fx) {
+      fxc.globalCompositeOperation = 'source-over';
+      fxc.drawImage(cvs, 0, 0, fx.width, fx.height);
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = 0.55;
+      ctx.imageSmoothingEnabled = true;
+      ctx.drawImage(fx, 0, 0, W, H);
+      ctx.globalAlpha = 1;
     }
 
     ctx.globalCompositeOperation = 'source-over';
@@ -603,6 +835,12 @@
   document.getElementById('form').addEventListener('submit', function (e) {
     e.preventDefault();
     loadUser(document.getElementById('user').value);
+  });
+
+  var soundBtn = document.getElementById('sound');
+  soundBtn.addEventListener('click', function () {
+    var s = Sound.toggle();
+    soundBtn.classList.toggle('on', s);
   });
 
   /* ---------- 启动 ---------- */
