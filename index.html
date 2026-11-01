@@ -540,23 +540,23 @@
     cam.pitch += (cam.tpitch - cam.pitch) * 0.09;
     cam.dist += (cam.tdist - cam.dist) * 0.09;
 
-    /* 空闲时极慢自转：约 4 分钟一圈 */
-    if (!dragging && now - lastInteract > 3200) cam.tyaw += 0.026 * dt;
+    /* 空闲时极慢自转：约 5 分钟一圈 */
+    if (!dragging && now - lastInteract > 3200) cam.tyaw += 0.020 * dt;
 
     ctx.globalCompositeOperation = 'source-over';
     ctx.globalAlpha = 1;
     ctx.drawImage(bgCanvas, 0, 0, W, H);
 
-    /* 鼠标微视差：镜头随指针轻轻偏一点，幅度很小，不影响正常查看 */
+    /* 鼠标微视差：幅度极小、跟随很慢，像呼吸而不是跟着鼠标动 */
     var parK = dragging ? 0.3 : 1;
-    parX += (ptrX * parK - parX) * 0.055;
-    parY += (ptrY * parK - parY) * 0.055;
+    parX += (ptrX * parK - parX) * 0.028;
+    parY += (ptrY * parK - parY) * 0.028;
 
-    var vyaw = cam.yaw + parX * 0.055;
-    var vpitch = clamp(cam.pitch + parY * 0.038, 0.10, 1.34);
+    var vyaw = cam.yaw + parX * 0.020;
+    var vpitch = clamp(cam.pitch + parY * 0.013, 0.10, 1.34);
     var cy = Math.cos(vyaw), sy = Math.sin(vyaw);
     var cp = Math.cos(vpitch), sp = Math.sin(vpitch);
-    var ox = W / 2 + parX * 11, oy = H / 2 + H * 0.085 + parY * 8, dist = cam.dist;
+    var ox = W / 2 + parX * 4, oy = H / 2 + H * 0.085 + parY * 3, dist = cam.dist;
 
     /* 地面网格：给“高度”一个参照，立体感才立得住 */
     ctx.globalCompositeOperation = 'source-over';
@@ -702,7 +702,7 @@
       }
 
       var size = Math.max(8, 38 * pt2.s) * (0.68 + 0.62 * s2.t) * (0.4 + 0.6 * gr);
-      var tw = 0.80 + 0.20 * Math.sin(el * 0.0016 + s2.ph);   /* 各自的呼吸相位 */
+      var tw = 0.88 + 0.12 * Math.sin(el * 0.0011 + s2.ph);   /* 各自的呼吸相位，很轻 */
       ctx.globalAlpha = (0.32 + 0.68 * s2.t) * gr * (0.35 + 0.65 * fog) * tw;
       ctx.drawImage(SPR[s2.bucket], pt2.x - size / 2, pt2.y - size / 2, size, size);
 
