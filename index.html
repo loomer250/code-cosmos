@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Code Cosmos · 代码星云</title>
+<meta name="description" content="输入一个 GitHub 用户名，把他过去一年的每一次提交，变成一片可以走进去的星云。" />
+<style>
+  :root{
+    --ink:#e8f2ff;
+    --muted:#6f86a3;
+    --line:rgba(120,170,230,0.18);
+    --accent:#2f81f7;
+  }
+  *{box-sizing:border-box}
+  html,body{
+    margin:0;height:100%;overflow:hidden;background:#04060c;color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  #stage{position:fixed;inset:0;display:block;touch-action:none;cursor:grab}
+  #stage.dragging{cursor:grabbing}
+
+  .hud{position:fixed;left:0;top:0;padding:34px 38px;pointer-events:none;z-index:2}
+  .brand{font-size:11px;letter-spacing:.34em;color:#7ea6d9;text-transform:uppercase}
+  .who{margin:10px 0 0;font-size:20px;font-weight:500;letter-spacing:-.01em;color:#eaf4ff}
+  .who em{font-style:normal;color:#8fb6e8}
+  .stats{display:flex;gap:34px;margin-top:22px}
+  .stat b{display:block;font-size:23px;font-weight:500;letter-spacing:-.02em;
+    font-variant-numeric:tabular-nums;color:#f2f8ff;line-height:1.1}
+  .stat span{display:block;font-size:11px;color:var(--muted);margin-top:5px;letter-spacing:.1em}
+
+  .hint{position:fixed;right:38px;top:38px;font-size:11px;color:#5b718c;letter-spacing:.06em;z-index:2;pointer-events:none}
+
+  .legend{position:fixed;left:38px;bottom:36px;display:flex;align-items:center;gap:9px;
+    font-size:11px;color:var(--muted);z-index:2;pointer-events:none}
+  .legend i{display:block;width:104px;height:3px;border-radius:2px;
+    background:linear-gradient(90deg,#24425f,#2f81f7,#6ed6ff,#ffe296)}
+
+  .dock{position:fixed;left:50%;bottom:32px;transform:translateX(-50%);z-index:3;
+    display:flex;align-items:center;gap:6px;padding:7px 7px 7px 18px;border-radius:999px;
+    background:rgba(12,19,31,.66);border:1px solid var(--line);
+    backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+    box-shadow:0 18px 50px rgba(0,0,0,.5);}
+  .dock .at{color:#4d6b90;font-size:13px;margin-right:-2px}
+  .dock input{width:212px;border:none;outline:none;background:transparent;color:var(--ink);
+    font-size:13.5px;font-family:inherit;letter-spacing:.01em;padding:9px 6px}
+  .dock input::placeholder{color:#4d6b90}
+  .dock button{border:none;cursor:pointer;border-radius:999px;padding:10px 18px;
+    background:var(--accent);color:#fff;font-size:13px;font-family:inherit;font-weight:500;
+    letter-spacing:.02em;transition:background .18s, transform .18s}
+  .dock button:hover{background:#4a94ff}
+  .dock button:active{transform:scale(.97)}
+
+  .status{position:fixed;left:50%;bottom:86px;transform:translateX(-50%);z-index:3;
+    font-size:11.5px;color:#7e93ad;letter-spacing:.02em;pointer-events:none;
+    opacity:0;transition:opacity .3s;max-width:80vw;text-align:center}
+  .status.on{opacity:1}
+
+  .card{position:fixed;z-index:4;padding:13px 16px;border-radius:12px;pointer-events:none;
+    background:rgba(10,17,28,.82);border:1px solid var(--line);
+    backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+    box-shadow:0 16px 40px rgba(0,0,0,.55);
+    opacity:0;transform:translateY(6px);transition:opacity .2s, transform .2s}
+  .card.on{opacity:1;transform:translateY(0)}
+  .card .d{font-size:12px;color:#8fb6e8;letter-spacing:.04em;font-variant-numeric:tabular-nums}
+  .card .n{font-size:17px;font-weight:500;margin-top:6px;color:#f2f8ff;font-variant-numeric:tabular-nums}
+  .card .n small{font-size:11px;color:var(--muted);font-weight:400;margin-left:5px;letter-spacing:.06em}
+
+  @media (max-width:760px){
+    .hud{padding:20px 20px}
+    .who{font-size:16px}
+    .stats{gap:18px;margin-top:16px}
+    .stat b{font-size:17px}
+    .stat span{font-size:10px}
+    .hint,.legend{display:none}
+    .dock{width:calc(100% - 28px);bottom:20px}
+    .dock input{width:auto;flex:1;min-width:0}
+    .status{bottom:76px}
+  }
+</style>
+</head>
+<body>
+<canvas id="stage"></canvas>
+
+<header class="hud">
+  <div class="brand">Code Cosmos</div>
+  <h1 class="who" id="who">@<em>demo</em> · 过去 365 天</h1>
+  <div class="stats">
+    <div class="stat"><b id="s-total">0</b><span>总提交</span></div>
+    <div class="stat"><b id="s-active">0</b><span>活跃天数</span></div>
+    <div class="stat"><b id="s-streak">0</b><span>最长连续</span></div>
+    <div class="stat"><b id="s-best">0</b><span>最高单日</span></div>
+  </div>
+</header>
+
+<div class="hint">拖动旋转 · 滚轮缩放 · 点击星点查看</div>
+
+<div class="legend"><span>少</span><i></i><span>多</span></div>
+
+<form class="dock" id="form">
+  <span class="at">@</span>
+  <input id="user" placeholder="输入 GitHub 用户名" autocomplete="off" spellcheck="false" />
+  <button type="submit">生成星系</button>
+</form>
+
+<div class="status" id="status"></div>
+<div class="card" id="card"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ---------- 示例数据（离线兜底，保证任何环境下都能演示） ---------- */
+  var DEMO = {
+    user: 'demo',
+    start: '2025-11-02',
+    counts: [1,8,4,4,0,7,1,0,5,3,0,2,1,1,0,8,4,1,16,2,0,2,2,5,4,1,0,2,3,5,3,3,2,2,2,3,1,1,12,0,2,0,0,1,5,2,0,3,2,3,0,3,3,1,9,12,2,5,2,8,7,2,0,0,7,4,5,0,2,4,1,2,6,4,12,4,3,4,4,0,0,0,0,1,0,0,0,0,1,1,0,2,4,5,2,3,5,3,9,3,4,4,4,3,1,0,6,0,5,8,0,0,1,3,3,3,1,4,3,1,3,3,2,7,4,3,1,5,6,9,3,0,0,0,3,13,4,2,4,6,1,2,4,5,5,6,0,0,3,0,4,5,4,0,4,8,4,5,2,4,2,5,0,3,6,3,5,4,2,4,7,5,5,6,2,0,0,3,6,4,5,3,1,5,4,6,4,0,4,2,3,0,6,11,6,0,3,6,4,3,3,6,1,0,2,5,7,3,3,0,4,5,6,5,4,0,2,1,3,4,5,15,5,2,1,7,3,0,7,4,4,1,7,2,3,6,1,2,2,8,3,0,9,6,0,3,9,7,7,3,5,4,2,5,7,5,4,3,4,1,18,8,7,8,4,0,1,0,1,0,0,0,0,0,1,1,5,0,7,2,4,9,5,5,5,7,6,0,8,8,3,6,7,4,0,3,6,7,11,10,7,0,6,0,3,4,8,5,10,7,8,0,12,4,2,1,9,7,0,11,0,2,0,0,6,7,7,8,0,3,5,0,13,9,9,2,2,8,8,7,9,6,2,0,7,7,8,5,0,0,0,7,4,5,7,8,2,7,8,7,7,6,5,0,5]
+  };
+
+  /* ---------- 基础工具 ---------- */
+  function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+  var INSTANT = /(\?|&)instant=1/.test(location.search);
+  function pad2(n) { return n < 10 ? '0' + n : '' + n; }
+  function fmtUTC(dt) {
+    return dt.getUTCFullYear() + '-' + pad2(dt.getUTCMonth() + 1) + '-' + pad2(dt.getUTCDate());
+  }
+
+  /* 颜色阶梯：深蓝 → 亮蓝 → 青 → 暖白 */
+  var RAMP = [
+    [0.00, [36, 66, 104]],
+    [0.30, [47, 129, 247]],
+    [0.62, [110, 214, 255]],
+    [0.85, [168, 240, 255]],
+    [1.00, [255, 226, 150]]
+  ];
+  function rampColor(t) {
+    t = clamp(t, 0, 1);
+    for (var i = 1; i < RAMP.length; i++) {
+      if (t <= RAMP[i][0]) {
+        var a = RAMP[i - 1], b = RAMP[i];
+        var k = (t - a[0]) / (b[0] - a[0] || 1);
+        return [
+          Math.round(a[1][0] + (b[1][0] - a[1][0]) * k),
+          Math.round(a[1][1] + (b[1][1] - a[1][1]) * k),
+          Math.round(a[1][2] + (b[1][2] - a[1][2]) * k)
+        ];
+      }
+    }
+    return RAMP[RAMP.length - 1][1];
+  }
+
+  /* ---------- 画布与相机 ---------- */
+  var cvs = document.getElementById('stage');
+  var ctx = cvs.getContext('2d');
+  var W = 0, H = 0, DPR = 1, focal = 900;
+  var bgCanvas = null;
+  var SPR = [];
+
+  var cam = { yaw: 0.95, pitch: 0.62, dist: 1180, tyaw: 0.95, tpitch: 0.62, tdist: 1180 };
+
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    cvs.width = Math.round(W * DPR);
+    cvs.height = Math.round(H * DPR);
+    cvs.style.width = W + 'px';
+    cvs.style.height = H + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    focal = Math.min(W, H) * 1.05;
+    buildBackground();
+  }
+
+  /* 背景：星云 + 远景星点，只在尺寸变化时重绘一次 */
+  function buildBackground() {
+    var c = document.createElement('canvas');
+    c.width = Math.round(W * DPR);
+    c.height = Math.round(H * DPR);
+    var g = c.getContext('2d');
+    g.setTransform(DPR, 0, 0, DPR, 0, 0);
+
+    g.fillStyle = '#04060c';
+    g.fillRect(0, 0, W, H);
+
+    var R = Math.max(W, H);
+    var neb = [
+      [W * 0.26, H * 0.34, R * 0.44, 'rgba(46,92,168,0.16)'],
+      [W * 0.74, H * 0.64, R * 0.40, 'rgba(118,58,158,0.12)'],
+      [W * 0.56, H * 0.16, R * 0.32, 'rgba(28,118,138,0.10)']
+    ];
+    for (var i = 0; i < neb.length; i++) {
+      var n = neb[i];
+      var grd = g.createRadialGradient(n[0], n[1], 0, n[0], n[1], n[2]);
+      grd.addColorStop(0, n[3]);
+      grd.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = grd;
+      g.fillRect(0, 0, W, H);
+    }
+
+    for (var k = 0; k < 340; k++) {
+      var x = Math.random() * W, y = Math.random() * H;
+      var r = Math.random() * 1.25 + 0.22;
+      var a = Math.random() * 0.45 + 0.06;
+      g.fillStyle = 'rgba(198,222,255,' + a.toFixed(3) + ')';
+      g.beginPath();
+      g.arc(x, y, r, 0, 6.2832);
+      g.fill();
+    }
+    bgCanvas = c;
+  }
+
+  /* 预渲染 10 档光晕贴图，避免逐帧创建渐变 */
+  function buildSprites() {
+    SPR = [];
+    for (var i = 0; i < 10; i++) {
+      var rgb = rampColor(i / 9);
+      var s = 64;
+      var c = document.createElement('canvas');
+      c.width = c.height = s;
+      var g = c.getContext('2d');
+      var grd = g.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
+      grd.addColorStop(0, 'rgba(255,255,255,0.95)');
+      grd.addColorStop(0.13, 'rgba(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ',0.92)');
+      grd.addColorStop(0.46, 'rgba(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ',0.26)');
+      grd.addColorStop(1, 'rgba(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ',0)');
+      g.fillStyle = grd;
+      g.fillRect(0, 0, s, s);
+      SPR.push(c);
+    }
+  }
+
+  /* ---------- 数据 ---------- */
+  var DOW = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+
+  function buildDays(startStr, counts) {
+    var p = startStr.split('-');
+    var base = Date.UTC(+p[0], +p[1] - 1, +p[2]);
+    var out = [];
+    for (var i = 0; i < counts.length; i++) {
+      var dt = new Date(base + i * 86400000);
+      out.push({ date: fmtUTC(dt), count: counts[i] | 0, dow: dt.getUTCDay() });
+    }
+    return out;
+  }
+
+  function getJSON(url, ms) {
+    var ctl = new AbortController();
+    var timer = setTimeout(function () { ctl.abort(); }, ms || 8000);
+    return fetch(url, { signal: ctl.signal, headers: { 'Accept': 'application/json' } })
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function (j) { clearTimeout(timer); return j; })
+      .catch(function (e) { clearTimeout(timer); throw e; });
+  }
+
+  /* 数据源三层兜底：贡献图镜像 → 公开事件 → 内置示例 */
+  function fetchContrib(name) {
+    var enc = encodeURIComponent(name);
+    return getJSON('https://github-contributions-api.jogruber.de/v4/' + enc + '?y=last', 8000)
+      .then(function (j) {
+        if (!j || !Array.isArray(j.contributions) || !j.contributions.length) {
+          throw new Error('empty');
+        }
+        var arr = j.contributions.slice(-365);
+        var days = arr.map(function (c) {
+          var dt = new Date(c.date + 'T00:00:00Z');
+          return { date: c.date, count: c.count | 0, dow: dt.getUTCDay() };
+        });
+        if (days.length < 365) {
+          var pad = 365 - days.length;
+          var first = new Date(days[0].date + 'T00:00:00Z').getTime();
+          var head = [];
+          for (var i = pad; i > 0; i--) {
+            var dt2 = new Date(first - i * 86400000);
+            head.push({ date: fmtUTC(dt2), count: 0, dow: dt2.getUTCDay() });
+          }
+          days = head.concat(days);
+        }
+        return { days: days, note: '数据来自 GitHub 贡献图 · 过去 365 天' };
+      })
+      .catch(function () {
+        return getJSON('https://api.github.com/users/' + enc + '/events/public?per_page=100', 8000)
+          .then(function (ev) {
+            if (!Array.isArray(ev)) throw new Error('bad');
+            var map = {};
+            for (var i = 0; i < ev.length; i++) {
+              var d = (ev[i].created_at || '').slice(0, 10);
+              if (d) map[d] = (map[d] || 0) + 1;
+            }
+            var now = new Date();
+            var todayUTC = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+            var start = todayUTC - 364 * 86400000;
+            var counts = [];
+            for (var k = 0; k < 365; k++) {
+              var key = fmtUTC(new Date(start + k * 86400000));
+              counts.push(map[key] || 0);
+            }
+            return { days: buildDays(fmtUTC(new Date(start)), counts), note: '数据来自公开事件（仅覆盖最近约 90 天）' };
+          });
+      });
+  }
+
+  /* ---------- 星系布局：一天一颗星，绕四圈就是一年 ---------- */
+  var stars = [];
+  var TURNS = 4;
+  var R0 = 74, RMAX = 522;
+
+  function layout(days) {
+    var n = days.length;
+    var dTheta = (Math.PI * 2 * TURNS) / Math.max(1, n - 1);
+    var dR = (RMAX - R0) / Math.max(1, n - 1);
+    var max = 1;
+    for (var i = 0; i < n; i++) if (days[i].count > max) max = days[i].count;
+
+    stars = days.map(function (d, i) {
+      var th = i * dTheta;
+      var r = R0 + i * dR;
+      var t = d.count === 0 ? 0 : Math.pow(d.count / max, 0.55);
+      return {
+        date: d.date, count: d.count, dow: d.dow,
+        x: Math.cos(th) * r,
+        z: Math.sin(th) * r,
+        h: d.count === 0 ? 0 : 6 + 20 * Math.sqrt(d.count),
+        t: t,
+        bucket: Math.round(t * 9),
+        delay: i * 2.0,
+        px: 0, py: 0, pz: 0, vis: false
+      };
+    });
+  }
+
+  /* ---------- 统计 ---------- */
+  function computeStats(days) {
+    var total = 0, active = 0, streak = 0, maxStreak = 0, best = 0, bestDate = '';
+    for (var i = 0; i < days.length; i++) {
+      var c = days[i].count;
+      total += c;
+      if (c > 0) { active++; streak++; if (streak > maxStreak) maxStreak = streak; }
+      else streak = 0;
+      if (c > best) { best = c; bestDate = days[i].date; }
+    }
+    return { total: total, active: active, maxStreak: maxStreak, best: best, bestDate: bestDate };
+  }
+
+  function updateStats(days) {
+    var s = computeStats(days);
+    document.getElementById('s-total').textContent = s.total.toLocaleString('en-US');
+    document.getElementById('s-active').textContent = s.active;
+    document.getElementById('s-streak').textContent = s.maxStreak + ' 天';
+    document.getElementById('s-best').textContent = s.best;
+    document.getElementById('s-best').title = s.bestDate;
+  }
+
+  /* ---------- 主循环 ---------- */
+  var t0 = performance.now();
+  var activeStar = null;
+  var hoverStar = null;
+  var lastInteract = 0;
+  var dragging = false;
+
+  function proj(x, y, z, cy, sy, cp, sp, ox, oy, dist) {
+    var x1 = x * cy - z * sy;
+    var z1 = x * sy + z * cy;
+    var y2 = y * cp - z1 * sp;
+    var z2 = y * sp + z1 * cp + dist;
+    if (z2 < 40) return null;
+    var s = focal / z2;
+    return { x: ox + x1 * s, y: oy - y2 * s, s: s, z: z2 };
+  }
+
+  function frame(now) {
+    var el = now - t0;
+
+    cam.yaw += (cam.tyaw - cam.yaw) * 0.11;
+    cam.pitch += (cam.tpitch - cam.pitch) * 0.11;
+    cam.dist += (cam.tdist - cam.dist) * 0.10;
+
+    if (!dragging && now - lastInteract > 2400) cam.tyaw += 0.0016;
+
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+    ctx.drawImage(bgCanvas, 0, 0, W, H);
+
+    var cy = Math.cos(cam.yaw), sy = Math.sin(cam.yaw);
+    var cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch);
+    var ox = W / 2, oy = H / 2 + H * 0.06, dist = cam.dist;
+
+    /* 参考圆环，帮助感知空间 */
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.strokeStyle = 'rgba(88,140,205,0.10)';
+    ctx.lineWidth = 1;
+    var rings = [190, 356, 522];
+    for (var ri = 0; ri < rings.length; ri++) {
+      ctx.beginPath();
+      var started = false;
+      for (var a = 0; a <= 72; a++) {
+        var th = (a / 72) * Math.PI * 2;
+        var p = proj(Math.cos(th) * rings[ri], 0, Math.sin(th) * rings[ri], cy, sy, cp, sp, ox, oy, dist);
+        if (!p) { started = false; continue; }
+        if (!started) { ctx.moveTo(p.x, p.y); started = true; } else { ctx.lineTo(p.x, p.y); }
+      }
+      ctx.stroke();
+    }
+
+    /* 投影 + 按深度排序 */
+    var list = [];
+    for (var i = 0; i < stars.length; i++) {
+      var st = stars[i];
+      var g = clamp((el - st.delay) / 650, 0, 1);
+      st.vis = false;
+      if (g <= 0) continue;
+      var grow = 1 - Math.pow(1 - g, 3);
+      var pb = proj(st.x, 0, st.z, cy, sy, cp, sp, ox, oy, dist);
+      if (!pb) continue;
+      var pt = proj(st.x, st.h * grow, st.z, cy, sy, cp, sp, ox, oy, dist);
+      if (!pt) continue;
+      st.px = pt.x; st.py = pt.y; st.pz = pb.z; st.vis = true; st.grow = grow;
+      list.push({ st: st, pb: pb, pt: pt, z: pb.z });
+    }
+    list.sort(function (A, B) { return B.z - A.z; });
+
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.lineCap = 'round';
+
+    /* 星系核心的柔光 */
+    var core = proj(0, 0, 0, cy, sy, cp, sp, ox, oy, dist);
+    if (core) {
+      var cs = 150 * core.s;
+      ctx.globalAlpha = 0.5;
+      ctx.drawImage(SPR[4], core.x - cs / 2, core.y - cs / 2, cs, cs);
+      ctx.globalAlpha = 1;
+    }
+
+    for (var j = 0; j < list.length; j++) {
+      var it = list[j], s2 = it.st, pb2 = it.pb, pt2 = it.pt, gr = s2.grow;
+      var col = rampColor(s2.t);
+      var rgb = col[0] + ',' + col[1] + ',' + col[2];
+      var lw = Math.max(1.0, 3.2 * pb2.s);
+
+      if (s2.h > 0.5) {
+        ctx.beginPath();
+        ctx.moveTo(pb2.x, pb2.y);
+        ctx.lineTo(pt2.x, pt2.y);
+        ctx.strokeStyle = 'rgba(' + rgb + ',' + (0.085 * gr).toFixed(3) + ')';
+        ctx.lineWidth = lw * 3.4;
+        ctx.stroke();
+        ctx.strokeStyle = 'rgba(' + rgb + ',' + (0.5 * gr).toFixed(3) + ')';
+        ctx.lineWidth = lw * 0.85;
+        ctx.stroke();
+      }
+
+      var size = Math.max(8, 38 * pt2.s) * (0.68 + 0.62 * s2.t) * (0.4 + 0.6 * gr);
+      ctx.globalAlpha = (0.32 + 0.68 * s2.t) * gr;
+      ctx.drawImage(SPR[s2.bucket], pt2.x - size / 2, pt2.y - size / 2, size, size);
+
+      /* 柱体落点的微光，让整片星系有“地面” */
+      if (s2.h > 0.5) {
+        var bs = size * 0.55;
+        ctx.globalAlpha = 0.16 * gr;
+        ctx.drawImage(SPR[s2.bucket], pb2.x - bs / 2, pb2.y - bs / 2, bs, bs);
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    /* 高亮 */
+    var hi = hoverStar || activeStar;
+    if (hi && hi.vis) {
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.beginPath();
+      ctx.arc(hi.px, hi.py, 13, 0, 6.2832);
+      ctx.strokeStyle = 'rgba(190,235,255,0.75)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(hi.px, hi.py, 22, 0, 6.2832);
+      ctx.strokeStyle = 'rgba(150,210,255,0.18)';
+      ctx.stroke();
+    }
+
+    ctx.globalCompositeOperation = 'source-over';
+    requestAnimationFrame(frame);
+  }
+
+  /* ---------- 交互 ---------- */
+  var lastX = 0, lastY = 0, moved = 0;
+
+  function pick(mx, my) {
+    var best = null, bestD = 16 * 16;
+    for (var i = 0; i < stars.length; i++) {
+      var s = stars[i];
+      if (!s.vis) continue;
+      var dx = s.px - mx, dy = s.py - my;
+      var d = dx * dx + dy * dy;
+      if (d < bestD) { bestD = d; best = s; }
+    }
+    return best;
+  }
+
+  var card = document.getElementById('card');
+
+  function showCard(s, mx, my) {
+    card.innerHTML = '<div class="d">' + s.date + ' ' + DOW[s.dow] + '</div>' +
+      '<div class="n">' + s.count + '<small>次提交</small></div>';
+    card.classList.add('on');
+    var w = 150, h = 74;
+    var left = clamp(mx + 18, 12, W - w - 12);
+    var top = clamp(my - h - 12, 12, H - h - 12);
+    card.style.left = left + 'px';
+    card.style.top = top + 'px';
+  }
+
+  function hideCard() { card.classList.remove('on'); }
+
+  cvs.addEventListener('pointerdown', function (e) {
+    dragging = true;
+    moved = 0;
+    lastX = e.clientX; lastY = e.clientY;
+    lastInteract = performance.now();
+    cvs.classList.add('dragging');
+    try { cvs.setPointerCapture(e.pointerId); } catch (err) {}
+  });
+
+  cvs.addEventListener('pointermove', function (e) {
+    if (dragging) {
+      var dx = e.clientX - lastX, dy = e.clientY - lastY;
+      moved += Math.abs(dx) + Math.abs(dy);
+      cam.tyaw += dx * 0.0055;
+      cam.tpitch = clamp(cam.tpitch + dy * 0.0042, 0.06, 1.32);
+      lastX = e.clientX; lastY = e.clientY;
+      lastInteract = performance.now();
+    } else {
+      var s = pick(e.clientX, e.clientY);
+      if (s !== hoverStar) {
+        hoverStar = s;
+        cvs.style.cursor = s ? 'pointer' : 'grab';
+        if (s) showCard(s, e.clientX, e.clientY); else if (!activeStar) hideCard();
+      } else if (s) {
+        showCard(s, e.clientX, e.clientY);
+      }
+    }
+  });
+
+  cvs.addEventListener('pointerup', function (e) {
+    dragging = false;
+    cvs.classList.remove('dragging');
+    if (moved < 6) {
+      var s = pick(e.clientX, e.clientY);
+      activeStar = s;
+      if (s) showCard(s, e.clientX, e.clientY); else hideCard();
+    }
+  });
+
+  cvs.addEventListener('pointerleave', function () {
+    hoverStar = null;
+    if (!activeStar) hideCard();
+  });
+
+  cvs.addEventListener('wheel', function (e) {
+    e.preventDefault();
+    cam.tdist = clamp(cam.tdist * (1 + e.deltaY * 0.0011), 700, 3000);
+    lastInteract = performance.now();
+  }, { passive: false });
+
+  /* ---------- 载入与切换 ---------- */
+  var statusEl = document.getElementById('status');
+  var statusTimer = null;
+
+  function setStatus(text, sticky) {
+    clearTimeout(statusTimer);
+    if (!text) { statusEl.classList.remove('on'); return; }
+    statusEl.textContent = text;
+    statusEl.classList.add('on');
+    if (!sticky) statusTimer = setTimeout(function () { statusEl.classList.remove('on'); }, 6000);
+  }
+
+  function setData(name, days, note) {
+    layout(days);
+    updateStats(days);
+    document.getElementById('who').innerHTML = '@<em>' + name + '</em> · 过去 365 天';
+    t0 = performance.now() - (INSTANT ? 6000 : 0);
+    activeStar = null;
+    hoverStar = null;
+    hideCard();
+    if (note) setStatus(note);
+    document.title = '@' + name + ' 的代码星云 · Code Cosmos';
+  }
+
+  function loadUser(name) {
+    name = String(name || '').trim().replace(/^@/, '');
+    if (!name) return;
+    setStatus('正在拉取 @' + name + ' 的提交记录…', true);
+    fetchContrib(name).then(function (res) {
+      setData(name, res.days, res.note);
+    }).catch(function () {
+      setStatus('没拉到 @' + name + ' 的数据（可能是网络或用户名有误），已切回示例星系');
+      setData(DEMO.user, buildDays(DEMO.start, DEMO.counts), null);
+    });
+  }
+
+  document.getElementById('form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    loadUser(document.getElementById('user').value);
+  });
+
+  /* ---------- 启动 ---------- */
+  resize();
+  buildSprites();
+  window.addEventListener('resize', resize);
+
+  var params = new URLSearchParams(location.search);
+  var qUser = params.get('user');
+  setData(DEMO.user, buildDays(DEMO.start, DEMO.counts), '示例星系 · 在下方输入你的 GitHub 用户名试试');
+  if (qUser) {
+    document.getElementById('user').value = qUser;
+    loadUser(qUser);
+  }
+
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
