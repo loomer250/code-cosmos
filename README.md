@@ -2,7 +2,7 @@
 
 > 输入一个 GitHub 用户名，把他过去一年的每一次提交，变成一片可以走进去的星云。
 
-**在线体验** → https://YOUR_NAME.github.io/code-cosmos/
+**在线体验** → https://loomer250.github.io/code-cosmos/
 
 ![预览](docs/preview.jpg)
 
@@ -72,7 +72,7 @@ GitHub 的贡献图是 53 × 7 个绿色小方块，它精确，但抽象。你�
 ## 本地运行
 
 ```bash
-git clone https://github.com/YOUR_NAME/code-cosmos.git
+git clone https://github.com/loomer250/code-cosmos.git
 cd code-cosmos
 ```
 
