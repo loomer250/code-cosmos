@@ -41,7 +41,6 @@
   .legend{position:fixed;left:38px;bottom:36px;display:flex;flex-direction:column;
     align-items:flex-start;gap:7px;z-index:2;pointer-events:none}
   .legend .row{display:flex;align-items:center;gap:9px;font-size:11px;color:var(--muted)}
-  .legend .cap{font-size:10.5px;color:#54708f;letter-spacing:.08em}
   .legend i{display:block;width:104px;height:3px;border-radius:2px;
     background:linear-gradient(90deg,#16284a,#1e4e96,#2e80e0,#60c4fa,#baf0ff,#ffde94)}
 
@@ -137,7 +136,6 @@
 
 <div class="legend">
   <div class="row"><span>少</span><i></i><span>多</span></div>
-  <div class="cap">内圈 = 一年前 · 外圈 = 今天</div>
 </div>
 
 <form class="dock" id="form">
@@ -562,6 +560,34 @@
     return { x: ox + x1 * s, y: oy - y2 * s, s: s, z: z2 };
   }
 
+  /* 时间方向：只在螺旋的头尾各留两个字，跟着星系一起转，不占任何面积 */
+  function drawTimeMarks(ox, oy, dist) {
+    if (stars.length < 2) return;
+
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = '10px -apple-system, "PingFang SC", system-ui, sans-serif';
+    ctx.shadowColor = 'rgba(2,6,14,0.85)';
+    ctx.shadowBlur = 6;
+
+    label(stars[0], '一年前', 0.32, 30);
+    label(stars[stars.length - 1], '今天', 0.44, 26);
+
+    ctx.shadowBlur = 0;
+    ctx.textAlign = 'start';
+    ctx.textBaseline = 'alphabetic';
+
+    function label(s, text, alpha, gap) {
+      if (!s || !s.vis) return;
+      var dx = s.px - ox, dy = s.py - oy;
+      var len = Math.sqrt(dx * dx + dy * dy) || 1;
+      var fog = clamp((dist + 620 - s.pz) / 980, 0.12, 1);   /* 转到背面时跟着变淡 */
+      ctx.fillStyle = 'rgba(178,212,247,' + (alpha * (0.45 + 0.55 * fog)).toFixed(3) + ')';
+      ctx.fillText(text, s.px + dx / len * gap, s.py + dy / len * gap);
+    }
+  }
+
   function frame(now) {
     var el = now - t0;
     var dt = Math.min(0.05, (now - (frame.last || now)) / 1000);
@@ -789,7 +815,8 @@
 
     ctx.globalCompositeOperation = 'source-over';
 
-    /* 视角被转偏之后，浮出“回正”按钮 */
+    /* 时间方向画在辉光之后，才不会被糊掉 */
+    drawTimeMarks(ox, oy, dist);
     var off = manual && (Math.abs(cam.tyaw - DEF.yaw) > 0.22 ||
               Math.abs(cam.tpitch - DEF.pitch) > 0.10 ||
               Math.abs(cam.tdist - DEF.dist) > 170);
