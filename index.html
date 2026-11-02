@@ -375,6 +375,7 @@
   var dust = [];
   var TURNS = 4;
   var R0 = 74, RMAX = 522;
+  var PHASE = -2.35;      /* 螺旋相位：让终点「今天」落在镜头这一侧 */
 
   function layout(days) {
     var n = days.length;
@@ -384,7 +385,7 @@
     for (var i = 0; i < n; i++) if (days[i].count > max) max = days[i].count;
 
     stars = days.map(function (d, i) {
-      var th = i * dTheta;
+      var th = i * dTheta + PHASE;
       var r = R0 + i * dR;
       var t = d.count === 0 ? 0 : Math.pow(d.count / max, 0.62);
       return {
