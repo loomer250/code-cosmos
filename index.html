@@ -1032,7 +1032,7 @@
     if (!s) stopAutoSound();
   });
 
-  /* 进入即尝试播放；被浏览器拦下时，等第一次任何操作自动响起来 */
+  /* 进去先安静；等你做第一个动作（点击 / 按键 / 滚动 / 触摸）再把音乐接上 */
   Sound.setOnRun(function () {
     if (!soundWanted) return;
     Sound.start(function (ok) {
@@ -1042,9 +1042,6 @@
   for (var ai = 0; ai < AUTO_EV.length; ai++) {
     window.addEventListener(AUTO_EV[ai], onFirstGesture, true);
   }
-  Sound.start(function (ok) {
-    if (ok) { paintSound(true); stopAutoSound(); }
-  });
 
   /* ---------- 启动 ---------- */
   resize();
