@@ -27,8 +27,10 @@
   .brand{font-size:11px;letter-spacing:.34em;color:#7ea6d9;text-transform:uppercase}
   .who{margin:10px 0 0;font-size:20px;font-weight:500;letter-spacing:-.01em;color:#eaf4ff}
   .who em{font-style:normal;color:#8fb6e8}
-  .range{margin-top:8px;font-size:10.5px;letter-spacing:.16em;color:#4e6a8c;
-    font-variant-numeric:tabular-nums}
+  .range{margin-top:9px;display:flex;align-items:center;gap:9px;
+    font-size:11px;letter-spacing:.13em;color:#8aa9cc;
+    font-variant-numeric:tabular-nums;text-shadow:0 1px 8px rgba(2,6,14,.9)}
+  .range i{display:block;width:16px;height:1px;background:#405e83;flex:none}
   .stats{display:flex;gap:34px;margin-top:18px}
   .stat b{display:block;font-size:23px;font-weight:500;letter-spacing:-.02em;
     font-variant-numeric:tabular-nums;color:#f2f8ff;line-height:1.1}
@@ -108,7 +110,8 @@
     .hint,.legend{display:none}
     .sound{top:20px;right:20px;bottom:auto;width:36px;height:36px}
     .reset{top:66px;right:20px;bottom:auto;height:30px;font-size:10.5px}
-    .range{font-size:9.5px;letter-spacing:.12em}
+    .range{font-size:10px;letter-spacing:.1em;gap:7px}
+    .range i{width:11px}
     .dock{width:calc(100% - 28px);bottom:20px}
     .dock input{width:auto;flex:1;min-width:0}
     .status{bottom:76px}
@@ -919,8 +922,9 @@
     layout(days);
     updateStats(days);
     document.getElementById('who').innerHTML = '@<em>' + name + '</em> · 过去 365 天';
-    document.getElementById('range').textContent =
-      days[0].date.replace(/-/g, '.') + '  —  ' + days[days.length - 1].date.replace(/-/g, '.');
+    document.getElementById('range').innerHTML =
+      '<span>' + days[0].date.replace(/-/g, '.') + '</span><i></i>' +
+      '<span>' + days[days.length - 1].date.replace(/-/g, '.') + '</span>';
     t0 = performance.now() - (INSTANT ? 6000 : 0);
     activeStar = null;
     hoverStar = null;
