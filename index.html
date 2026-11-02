@@ -553,8 +553,9 @@
   function proj(x, y, z, cy, sy, cp, sp, ox, oy, dist) {
     var x1 = x * cy - z * sy;
     var z1 = x * sy + z * cy;
-    var y2 = y * cp - z1 * sp;
-    var z2 = y * sp + z1 * cp + dist;
+    /* 相机在平面之上：远侧抬升、近侧下沉，才是“俯看一张桌子”的正常透视 */
+    var y2 = y * cp + z1 * sp;
+    var z2 = -y * sp + z1 * cp + dist;
     if (z2 < 40) return null;
     var s = focal / z2;
     return { x: ox + x1 * s, y: oy - y2 * s, s: s, z: z2 };
@@ -628,7 +629,7 @@
     var vpitch = clamp(cam.pitch + parY * 0.013, 0.10, 1.34);
     var cy = Math.cos(vyaw), sy = Math.sin(vyaw);
     var cp = Math.cos(vpitch), sp = Math.sin(vpitch);
-    var ox = W / 2 + parX * 4, oy = H / 2 + H * 0.085 + parY * 3, dist = cam.dist;
+    var ox = W / 2 + parX * 4, oy = H / 2 - H * 0.025 + parY * 3, dist = cam.dist;
 
     /* 地面网格：给“高度”一个参照，立体感才立得住 */
     ctx.globalCompositeOperation = 'source-over';
