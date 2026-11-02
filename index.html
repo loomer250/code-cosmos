@@ -441,13 +441,18 @@
 
   /* ---------- 宇宙背景音：全部由振荡器实时合成，不加载任何音频文件 ---------- */
   var Sound = (function () {
-    var ac = null, master = null, bus = null, on = false, bellTimer = 0, pulseAt = -9999;
+    var ac = null, master = null, bus = null, on = false, bellTimer = 0, pulseAt = -9999, onRun = null;
     var SCALE = [0, 3, 5, 7, 10];   /* 小调五声音阶，怎么弹都不刺耳 */
 
     function build() {
       var AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) return false;
       ac = new AC();
+
+      /* 浏览器允许播放的那一刻，无论谁把它放行的，都接着往下走 */
+      ac.addEventListener('statechange', function () {
+        if (ac.state === 'running' && onRun) onRun();
+      });
 
       master = ac.createGain();
       master.gain.value = 0;
@@ -521,21 +526,43 @@
       bellTimer = setTimeout(bell, 2600 + Math.random() * 5200);
     }
 
+    function begin() {
+      if (!ac && !build()) return false;
+      if (!on) {
+        on = true;
+        master.gain.cancelScheduledValues(ac.currentTime);
+        master.gain.setTargetAtTime(0.2, ac.currentTime, 0.9);
+        scheduleBell();
+      }
+      return true;
+    }
+
+    function halt() {
+      on = false;
+      clearTimeout(bellTimer);
+      if (master) {
+        master.gain.cancelScheduledValues(ac.currentTime);
+        master.gain.setTargetAtTime(0, ac.currentTime, 0.25);
+      }
+    }
+
     return {
+      /* 尝试开始；浏览器拦下自动播放时回调 false，等下一次用户操作再试 */
+      start: function (done) {
+        if (!ac && !build()) { if (done) done(false); return; }
+        if (ac.state === 'running') { begin(); if (done) done(true); return; }
+        if (ac.resume) {
+          ac.resume().then(function () {
+            if (ac.state === 'running') { begin(); if (done) done(true); }
+            else if (done) done(false);
+          }, function () { if (done) done(false); });
+        } else if (done) done(false);
+      },
+      isOn: function () { return on; },
+      setOnRun: function (fn) { onRun = fn; },
       toggle: function () {
-        if (!ac && !build()) return false;
-        on = !on;
-        if (on) {
-          if (ac.state === 'suspended' && ac.resume) ac.resume();
-          master.gain.cancelScheduledValues(ac.currentTime);
-          master.gain.setTargetAtTime(0.2, ac.currentTime, 0.9);
-          scheduleBell();
-        } else {
-          master.gain.cancelScheduledValues(ac.currentTime);
-          master.gain.setTargetAtTime(0, ac.currentTime, 0.25);
-          clearTimeout(bellTimer);
-        }
-        return on;
+        if (on) { halt(); return false; }
+        return begin();
       },
       pulse: function () {
         if (!on) return 0;
@@ -980,9 +1007,43 @@
   });
 
   var soundBtn = document.getElementById('sound');
+  var soundWanted = true;                    /* 用户手动关掉后，不再自动开 */
+  var AUTO_EV = ['pointerdown', 'keydown', 'touchstart', 'wheel'];
+
+  function paintSound(s) { soundBtn.classList.toggle('on', s); }
+
+  function stopAutoSound() {
+    for (var i = 0; i < AUTO_EV.length; i++) window.removeEventListener(AUTO_EV[i], onFirstGesture, true);
+  }
+
+  function onFirstGesture(e) {
+    if (!soundWanted) return;
+    if (e && e.target && soundBtn.contains(e.target)) return;   /* 点喇叭交给它自己处理 */
+    Sound.start(function (ok) {
+      paintSound(ok);
+      if (ok) stopAutoSound();
+    });
+  }
+
   soundBtn.addEventListener('click', function () {
     var s = Sound.toggle();
-    soundBtn.classList.toggle('on', s);
+    paintSound(s);
+    soundWanted = s;
+    if (!s) stopAutoSound();
+  });
+
+  /* 进入即尝试播放；被浏览器拦下时，等第一次任何操作自动响起来 */
+  Sound.setOnRun(function () {
+    if (!soundWanted) return;
+    Sound.start(function (ok) {
+      if (ok) { paintSound(true); stopAutoSound(); }
+    });
+  });
+  for (var ai = 0; ai < AUTO_EV.length; ai++) {
+    window.addEventListener(AUTO_EV[ai], onFirstGesture, true);
+  }
+  Sound.start(function (ok) {
+    if (ok) { paintSound(true); stopAutoSound(); }
   });
 
   /* ---------- 启动 ---------- */
